@@ -180,10 +180,30 @@ window.tildastatcookie='no';setTimeout(function(){(function(d,w,k,o,g) {var n=d.
   const phone = "77018826050";
   let sending = false;
 
-  function readableLabel(field){
+  function formRoot(node){
+    return node && node.closest && (node.closest(".t396__elem[data-elem-type='form']") || node.closest(".tn-atom__form") || node.closest("form"));
+  }
+
+  function labelMap(root){
+    const map = {};
+    const dataNode = root && root.querySelector(".tn-atom__inputs-data");
+    const raw = dataNode ? dataNode.getAttribute("data-value") : "";
+    if(!raw) return map;
+    try {
+      JSON.parse(raw).forEach(function(item){
+        const label = item.li_title || item.li_ph || item.li_nm || "";
+        if(item.li_nm && label) map[item.li_nm] = label;
+        if(item.lid && label) map[item.lid] = label;
+      });
+    } catch(e) {}
+    return map;
+  }
+
+  function readableLabel(field, labels){
     const raw = field.getAttribute("name") || field.getAttribute("data-input-lid") || field.getAttribute("placeholder") || field.getAttribute("aria-label") || "";
-    if(raw === "Name") return "Есім";
-    return raw.replace(/[_-]+/g," ").trim() || "Жауап";
+    if(labels[raw]) return labels[raw].replace(/\s*:+\s*$/,"");
+    if(raw === "Name") return "Есім(дер)іңіз";
+    return raw.replace(/[_-]+/g," ").replace(/\s*:+\s*$/,"").trim() || "Жауап";
   }
 
   function isServiceField(field){
@@ -195,25 +215,28 @@ window.tildastatcookie='no';setTimeout(function(){(function(d,w,k,o,g) {var n=d.
       field.className
     ].join(" ").toLowerCase();
     const value = (field.value || "").trim().toLowerCase();
-    return meta.includes("spec") || meta.includes("tilda") || value === "its good";
+    return meta.includes("tildaspec") || meta.includes("form-spec") || meta.includes("js-form-spec") || value === "its good";
   }
 
-  function collectForm(form){
+  function collectForm(source){
+    const root = formRoot(source) || source;
+    const labels = labelMap(root);
     const lines = ["Ұлықбек - Айгерім тойына жауап"];
-    const fields = Array.from(form.querySelectorAll("input, textarea, select"));
+    const fields = Array.from(root.querySelectorAll("input, textarea, select"));
     const usedRadioNames = new Set();
 
     fields.forEach(function(field){
+      if(field.closest(".tn-atom__inputs-wrapp") || field.classList.contains("tn-atom__inputs-textarea")) return;
       if(isServiceField(field)) return;
       if(!field.name && !field.placeholder && !field.getAttribute("aria-label")) return;
-      if(field.type === "hidden" || field.type === "submit" || field.type === "button") return;
+      if((field.type === "hidden" && !labels[field.name]) || field.type === "submit" || field.type === "button") return;
       if((field.type === "radio" || field.type === "checkbox") && !field.checked) return;
       if(field.type === "radio") {
         if(usedRadioNames.has(field.name)) return;
         usedRadioNames.add(field.name);
       }
 
-      const label = readableLabel(field);
+      const label = readableLabel(field, labels);
       const value = (field.value || "").trim();
       if(value) lines.push(label + ": " + value);
     });
@@ -221,17 +244,17 @@ window.tildastatcookie='no';setTimeout(function(){(function(d,w,k,o,g) {var n=d.
     return lines.join("\n");
   }
 
-  function openWhatsApp(form){
+  function openWhatsApp(source){
     if(sending) return;
     sending = true;
-    const text = collectForm(form);
+    const text = collectForm(source);
     window.location.href = "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
     setTimeout(function(){ sending = false; }, 1500);
   }
 
   document.addEventListener("submit", function(event){
-    const form = event.target;
-    if(!form || !form.closest || !form.closest(".tn-atom__form")) return;
+    const form = formRoot(event.target);
+    if(!form) return;
     event.preventDefault();
     event.stopPropagation();
     openWhatsApp(form);
@@ -240,8 +263,8 @@ window.tildastatcookie='no';setTimeout(function(){(function(d,w,k,o,g) {var n=d.
   document.addEventListener("click", function(event){
     const button = event.target.closest && event.target.closest("button, .t-submit, [type='submit']");
     if(!button) return;
-    const form = button.closest("form");
-    if(!form || !form.closest(".tn-atom__form")) return;
+    const form = formRoot(button);
+    if(!form) return;
     event.preventDefault();
     event.stopPropagation();
     openWhatsApp(form);
